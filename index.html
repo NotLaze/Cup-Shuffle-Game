@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Cup Shuffle Game</title>
+  <title>Ultimate Cup Shuffle</title>
   <style>
     body {
       margin: 0;
@@ -11,18 +11,24 @@
       background: linear-gradient(to top, #141e30, #243b55);
       font-family: 'Segoe UI', sans-serif;
       color: white;
-      overflow: hidden;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
       height: 100vh;
+      overflow: hidden;
     }
 
     h1 {
-      margin-bottom: 20px;
+      margin-bottom: 10px;
       font-size: 2.5rem;
       text-shadow: 0 0 10px #fff;
+    }
+
+    #scoreBoard {
+      font-size: 1.2rem;
+      margin-bottom: 20px;
+      color: #f1c40f;
     }
 
     #game {
@@ -34,12 +40,33 @@
     .cup {
       width: 100px;
       height: 150px;
-      background: #8e44ad;
       border-radius: 50% 50% 20% 20%;
       position: relative;
-      transition: transform 0.6s ease-in-out;
+      transition: all 0.6s ease;
       box-shadow: 0 10px 20px rgba(0, 0, 0, 0.5);
       cursor: pointer;
+      transform-style: preserve-3d;
+    }
+
+    .glass {
+      background: rgba(255, 255, 255, 0.2);
+      backdrop-filter: blur(8px);
+      border: 2px solid rgba(255, 255, 255, 0.4);
+    }
+
+    .paper {
+      background: #8e44ad;
+      border: none;
+    }
+
+    .cup.flip {
+      animation: flip 0.6s ease;
+    }
+
+    @keyframes flip {
+      0% { transform: rotateY(0); }
+      50% { transform: rotateY(90deg); }
+      100% { transform: rotateY(0); }
     }
 
     .ball {
@@ -53,64 +80,105 @@
       z-index: -1;
     }
 
-    #startBtn {
-      margin-top: 30px;
+    button {
+      margin-top: 20px;
       padding: 10px 25px;
       background: #3498db;
       border: none;
       border-radius: 10px;
-      font-size: 1.2rem;
+      font-size: 1.1rem;
       color: white;
       cursor: pointer;
       transition: background 0.3s;
     }
 
-    #startBtn:hover {
+    button:hover {
       background: #2980b9;
     }
 
     #result {
-      margin-top: 20px;
-      font-size: 1.5rem;
+      margin-top: 10px;
+      font-size: 1.3rem;
       font-weight: bold;
-      color: #f1c40f;
+    }
+
+    @media (max-width: 600px) {
+      #game {
+        gap: 20px;
+      }
+
+      .cup {
+        width: 80px;
+        height: 120px;
+      }
+
+      .ball {
+        width: 30px;
+        height: 30px;
+        left: 25px;
+      }
     }
   </style>
 </head>
 <body>
   <h1>Cup Shuffle Game</h1>
+  <div id="scoreBoard">Score: <span id="score">0</span> | High Score: <span id="highScore">0</span></div>
   <div id="game">
-    <div class="cup" onclick="guess(0)"></div>
-    <div class="cup" onclick="guess(1)"></div>
-    <div class="cup" onclick="guess(2)"></div>
+    <div class="cup paper" onclick="guess(0)"></div>
+    <div class="cup paper" onclick="guess(1)"></div>
+    <div class="cup paper" onclick="guess(2)"></div>
   </div>
-  <button id="startBtn" onclick="shuffleCups()">Start Shuffle</button>
+  <button onclick="shuffleCups()">🔄 Shuffle</button>
+  <button onclick="resetGame()">⏹ Restart</button>
   <div id="result"></div>
+
+  <!-- Sounds -->
+  <audio id="shuffleSound" src="sounds/shuffle.mp3"></audio>
+  <audio id="correctSound" src="sounds/correct.mp3"></audio>
+  <audio id="wrongSound" src="sounds/wrong.mp3"></audio>
 
   <script>
     const cups = document.querySelectorAll('.cup');
+    const scoreDisplay = document.getElementById('score');
+    const highScoreDisplay = document.getElementById('highScore');
+    const resultDisplay = document.getElementById('result');
+
     let ballPosition = 0;
     let shuffled = false;
+    let score = 0;
+    let highScore = localStorage.getItem('highScore') || 0;
+    highScoreDisplay.innerText = highScore;
+
+    const shuffleSound = document.getElementById('shuffleSound');
+    const correctSound = document.getElementById('correctSound');
+    const wrongSound = document.getElementById('wrongSound');
 
     function placeBall(pos) {
       cups.forEach(cup => {
         const ball = cup.querySelector('.ball');
         if (ball) cup.removeChild(ball);
       });
-
       const ball = document.createElement('div');
       ball.classList.add('ball');
       cups[pos].appendChild(ball);
     }
 
     function shuffleCups() {
-      document.getElementById('result').innerText = '';
+      resultDisplay.innerText = '';
       shuffled = false;
       ballPosition = Math.floor(Math.random() * 3);
       placeBall(ballPosition);
 
-      let order = [0, 1, 2];
-      for (let i = 0; i < 5; i++) {
+      // Switch to paper
+      cups.forEach(cup => {
+        cup.classList.remove('glass', 'flip');
+        cup.classList.add('paper');
+      });
+
+      shuffleSound.play();
+
+      const order = [0, 1, 2];
+      for (let i = 0; i < 6; i++) {
         const [a, b] = [Math.floor(Math.random() * 3), Math.floor(Math.random() * 3)];
         [order[a], order[b]] = [order[b], order[a]];
       }
@@ -123,23 +191,55 @@
         order.forEach((newPos, i) => {
           cups[i].style.transform = 'translateX(0)';
         });
-        shuffled = true;
 
         cups.forEach(cup => {
           const ball = cup.querySelector('.ball');
           if (ball) cup.removeChild(ball);
         });
+
+        shuffled = true;
       }, 1500);
     }
 
     function guess(index) {
       if (!shuffled) return;
+
       placeBall(ballPosition);
+
+      cups.forEach((cup, i) => {
+        cup.classList.remove('paper');
+        cup.classList.add('glass', 'flip');
+      });
+
       if (index === ballPosition) {
-        document.getElementById('result').innerText = '🎉 Correct!';
+        correctSound.play();
+        resultDisplay.innerText = '🎉 Correct!';
+        score++;
+        if (score > highScore) {
+          highScore = score;
+          localStorage.setItem('highScore', highScore);
+        }
       } else {
-        document.getElementById('result').innerText = '❌ Wrong! Try again.';
+        wrongSound.play();
+        resultDisplay.innerText = '❌ Wrong!';
+        score = 0;
       }
+
+      scoreDisplay.innerText = score;
+      highScoreDisplay.innerText = highScore;
+    }
+
+    function resetGame() {
+      score = 0;
+      scoreDisplay.innerText = 0;
+      resultDisplay.innerText = '';
+      cups.forEach(cup => {
+        const ball = cup.querySelector('.ball');
+        if (ball) cup.removeChild(ball);
+        cup.classList.remove('glass', 'flip');
+        cup.classList.add('paper');
+        cup.style.transform = 'translateX(0)';
+      });
     }
   </script>
 </body>
